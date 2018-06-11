@@ -1,0 +1,8 @@
+build
+.idea
+.vscode/*
+CMakeFiles/*
+CMakeCache.txt
+*.cmake
+Makefile
+sbm-0.00.1/*
