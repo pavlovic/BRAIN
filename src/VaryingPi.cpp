@@ -8,8 +8,8 @@
 #include <string>
 using namespace std;
 
-VaryingPi::VaryingPi(const mat* pDesignMatrix, uword nIterNR, uword nIterHalving, double maxDeltaBeta, const cube *pTau, const ucube *pAdjacencyMatrices) 
-    : pDesignMatrix(pDesignMatrix), nIterNR(nIterNR), nIterHalving(nIterHalving), pTau(pTau), pAdjacencyMatrices(pAdjacencyMatrices), maxDeltaBeta(maxDeltaBeta)
+VaryingPi::VaryingPi(const mat* pDesignMatrix, uword nIterNR, uword nIterHalving, double maxDeltaBeta, double relConvTol, const cube *pTau, const ucube *pAdjacencyMatrices) 
+    : pDesignMatrix(pDesignMatrix), nIterNR(nIterNR), nIterHalving(nIterHalving), pTau(pTau), pAdjacencyMatrices(pAdjacencyMatrices), maxDeltaBeta(maxDeltaBeta), relConvTol(relConvTol)
 {
     nCovariates = (*pDesignMatrix).n_cols;
     nSubjects  =  (*pDesignMatrix).n_rows;
@@ -141,6 +141,12 @@ void VaryingPi::computeBlockBeta(uword index1, uword index2)
             
             // update pi fitted
             VaryingPi::computeBlockPi(index1, index2);
+            // state convergence if the improvement is smaller than the convergence criterion
+            if ( blockLogLik -  blockLogLiks.at(index1, index2) < abs(blockLogLiks.at(index1, index2)) * relConvTol )
+            {
+                blockConvergences.at(index1, index2) = 1;
+                blockConvergences.at(index2, index1) = 1;
+            }
             blockLogLiks.at(index1, index2) = blockLogLik;
             blockLogLiks.at(index2, index1) = blockLogLik;
         }

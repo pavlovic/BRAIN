@@ -22,7 +22,7 @@ private:
     cube designMatrix2;
     mat sumHalfGamma, sumHalfMaskedGamma;
     umat blockConvergences;
-    double maxDeltaBeta;
+    double maxDeltaBeta, relConvTol;
     mat blockLogLiks;
 
     // pointers to objects outside the class
@@ -31,7 +31,7 @@ private:
     const mat* pDesignMatrix;
     
 public:
-    VaryingPi(const mat* pDesignMatrix, uword nIterNR, uword nIterHalving, double maxDeltaBeta, const cube *pTau, const ucube *pAdjacencyMatrices);
+    VaryingPi(const mat* pDesignMatrix, uword nIterNR, uword nIterHalving, double maxDeltaBeta, double relConvTol, const cube *pTau, const ucube *pAdjacencyMatrices);
     void computeBlockFisherInformation(uword index1, uword index2);
     void computeFisherInformation();
     void computeBlockScore(uword index1, uword index2);

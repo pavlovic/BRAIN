@@ -8,8 +8,8 @@
 #include <string>
 using namespace std;
 
-VaryingAlpha::VaryingAlpha(const mat* pDesignMatrix, uword nIterNR, uword nIterHalving, double maxDeltaBeta, double minAlpha, const cube* pTau)
-: pDesignMatrix(pDesignMatrix), nIterNR(nIterNR), nIterHalving(nIterHalving), maxDeltaBeta(maxDeltaBeta), minAlpha(minAlpha), pTau(pTau) 
+VaryingAlpha::VaryingAlpha(const mat* pDesignMatrix, uword nIterNR, uword nIterHalving, double maxDeltaBeta, double minAlpha, double relConvTol, const cube* pTau)
+: pDesignMatrix(pDesignMatrix), nIterNR(nIterNR), nIterHalving(nIterHalving), maxDeltaBeta(maxDeltaBeta), minAlpha(minAlpha), relConvTol(relConvTol), pTau(pTau) 
 {
     nSubjects = (*pDesignMatrix).n_rows;
     nCovariates = (*pDesignMatrix).n_cols;
@@ -96,6 +96,9 @@ void VaryingAlpha::computeNodalBeta(uword index)
         {
             beta.col(index) += deltaBeta; // TODO FI and score needs to be updated somewhere unless no clamping an no halving was used
             VaryingAlpha::computeNodalAlpha(index);
+            // state convergence if the improvement is smaller than the convergence criterion
+            if ( nodalLogLik - nodalLogLiks[index] < abs(nodalLogLiks[index]) * relConvTol )
+                nodalConvergences[index] = 1;
             nodalLogLiks[index] = nodalLogLik;
         }
         // state convergence if there is no improvement and do not update beta (i.e. keep the previous value)

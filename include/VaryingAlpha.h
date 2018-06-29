@@ -24,13 +24,13 @@ private:
     cube fisherInformation;
     colvec nodalLogLiks;
     ucolvec nodalConvergences;
-    double minAlpha, maxDeltaBeta;
+    double minAlpha, maxDeltaBeta, relConvTol;
 
     // pointers to objects outside the class
     const cube* pTau;
 
 public:
-    VaryingAlpha(const mat* pDesignMatrix, uword nIterNR, uword nIterHalving, double maxDeltaBeta, double minAlpha, const cube *pTau);
+    VaryingAlpha(const mat* pDesignMatrix, uword nIterNR, uword nIterHalving, double maxDeltaBeta, double minAlpha, double relConvTol, const cube *pTau);
     void computeNodalFisherInformation(uword index);
     void computeFisherInformation();
     void computeNodalScore(uword index);

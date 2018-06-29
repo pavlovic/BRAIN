@@ -38,7 +38,7 @@ private:
   // convergence criteria
   bool convergence;
   uword nIterSBM;
-  double relTolConvergenceIcl;
+  double relConvTol;
   // double convergenceDeltaForTau;
   // double convergenceDeltaForPi;
   // double convergenceDeltaForAlpha;

@@ -5,12 +5,12 @@
 
 #include "BaselineSbm.h"
 
-BaselineSbm::BaselineSbm(const ucube* pAdjacencyMatrices, bool directed, const mat* pDesignMatrixAlpha, const mat* pDesignMatrixPi, uword nClusters, uword nIterSBM, uword nIterTau, uword nIterAlpha, uword nIterPi, uword nIterHalvingAlpha, uword nIterHalvingPi, double maxDeltaBeta, double minTau, double minAlpha, double minDeltaTau, const umat* pStartingNodeAssignment, double relTolConvergenceIcl, bool verbose) 
+BaselineSbm::BaselineSbm(const ucube* pAdjacencyMatrices, bool directed, const mat* pDesignMatrixAlpha, const mat* pDesignMatrixPi, uword nClusters, uword nIterSBM, uword nIterTau, uword nIterAlpha, uword nIterPi, uword nIterHalvingAlpha, uword nIterHalvingPi, double maxDeltaBeta, double minTau, double minAlpha, double minDeltaTau, const umat* pStartingNodeAssignment, double relConvTol, bool verbose) 
 : pAdjacencyMatrices(pAdjacencyMatrices), directed(directed), nClusters(nClusters), nIterSBM(nIterSBM), pStartingNodeAssignment(pStartingNodeAssignment), convergence(false), verbose(verbose),
     varyingTau(pAdjacencyMatrices, pStartingNodeAssignment, nClusters, nIterTau, minTau, minDeltaTau),
-    varyingAlpha(pDesignMatrixAlpha, nIterAlpha, nIterHalvingAlpha, maxDeltaBeta, minAlpha, varyingTau.getTau()),
-    varyingPi(pDesignMatrixPi, nIterPi, nIterHalvingPi, maxDeltaBeta, varyingTau.getTau(), pAdjacencyMatrices),
-    relTolConvergenceIcl(relTolConvergenceIcl)
+    varyingAlpha(pDesignMatrixAlpha, nIterAlpha, nIterHalvingAlpha, maxDeltaBeta, minAlpha, relConvTol, varyingTau.getTau()),
+    varyingPi(pDesignMatrixPi, nIterPi, nIterHalvingPi, maxDeltaBeta, relConvTol, varyingTau.getTau(), pAdjacencyMatrices),
+    relConvTol(relConvTol)
 {
     uword nNodes = (*pAdjacencyMatrices).n_slices;
     uword nSubjects =  (*pDesignMatrixPi).n_rows;
@@ -45,7 +45,7 @@ void BaselineSbm::estimateModel()
             cout << "ICL score: " << icl[iIterSBM] << endl;  
 
         // evaluate if there is convergence
-        if(iIterSBM > 0 && (icl[iIterSBM] - icl[iIterSBM - 1]) < ( abs(icl[iIterSBM - 1]) * relTolConvergenceIcl ) )
+        if(iIterSBM > 0 && (icl[iIterSBM] - icl[iIterSBM - 1]) < ( abs(icl[iIterSBM - 1]) * relConvTol ) )
             convergence = true;
         
         iIterSBM++;

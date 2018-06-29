@@ -86,7 +86,7 @@ void VaryingTau::assignPointers(const cube* pAugmentedAlpha, const mat* pPi)
     this->pPi = pPi;
 }
 
-// TODO : find the bug in this function
+// TODO : optimise by stating convergence per subject basis
 void VaryingTau::updateNodalTau(uword index)
 {
     mat nodalTau = tau.slice(index);
@@ -126,6 +126,7 @@ void VaryingTau::updateNodalTau(uword index)
         maskedNodalTau.slice(i) = nodalTau % repmat(nodalAdjacencyMatrices.col(i).t(), nClusters, 1);    
     sumMaskedNodalTau = sumMaskedNodalTauMinusCurrent + maskedNodalTau;
     
+    // if( any( vectorise( abs(tau.slice(index) - nodalTau) ) > minDeltaTau))
     if( any( vectorise( abs(tau.slice(index) - nodalTau) ) > minDeltaTau))
         convergenceTau = false;
 
@@ -144,6 +145,7 @@ void VaryingTau::updateTau()
         convergenceTau = true;
         for (uword i = 0; i < nNodes; i++)
             VaryingTau::updateNodalTau(i);
+        // check if there is convergence in term of icl scores 
         iIterTau++;
     }
 }
