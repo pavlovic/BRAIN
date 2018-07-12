@@ -14,9 +14,10 @@ BaselineSbm::BaselineSbm(const ucube* pAdjacencyMatrices, bool directed, const m
 {
     uword nNodes = (*pAdjacencyMatrices).n_slices;
     uword nSubjects =  (*pDesignMatrixPi).n_rows;
+    icl = zeros<colvec>(1);
     iclPenalisation = 0.25  * nClusters * (nClusters + 1) * (*pDesignMatrixPi).n_cols  * log(0.5 * nNodes * (nNodes - 1) * nSubjects)
                      + 0.5 * (nClusters - 1) * (*pDesignMatrixAlpha).n_cols * nNodes * log (nNodes * nSubjects);
-    icl = zeros<colvec>(nIterSBM);
+    variationalBound = zeros<colvec>(nIterSBM);
     varyingTau.assignPointers(varyingAlpha.getAugmentedAlpha(), varyingPi.getPi());
 }
 
@@ -39,13 +40,13 @@ void BaselineSbm::estimateModel()
             cout << "Computing parameters for pi..." << endl;
         varyingPi.computeBeta();
 
-        // compute ICL
-        BaselineSbm::computeIcl(iIterSBM);
+        // compute the variational Bound
+        BaselineSbm::computeVariationalBound(iIterSBM);
         if(verbose)
-            cout << "ICL score: " << icl[iIterSBM] << endl;  
+            cout << "Variational bound: " << variationalBound[iIterSBM] << endl;  
 
         // evaluate if there is convergence
-        if(iIterSBM > 0 && (icl[iIterSBM] - icl[iIterSBM - 1]) < ( abs(icl[iIterSBM - 1]) * relConvTol ) )
+        if(iIterSBM > 0 && (variationalBound[iIterSBM] - variationalBound[iIterSBM - 1]) < ( abs(variationalBound[iIterSBM - 1]) * relConvTol ) )
             convergence = true;
         
         iIterSBM++;
@@ -53,22 +54,25 @@ void BaselineSbm::estimateModel()
 
     if(iIterSBM < nIterSBM)
     {
-        // trim icl 
-        icl.resize(iIterSBM);
+        // trim variationalBound 
+        variationalBound.resize(iIterSBM);
     }
-	
+
+	BaselineSbm::computeIcl();
+
+}
+void BaselineSbm::computeVariationalBound(uword iIterSBM)
+{
+    variationalBound[iIterSBM] = accu( trimatu( *(varyingPi.getBlockLogLiks()) ) ) 
+                    + accu( *(varyingAlpha.getNodalLogLiks()) )
+                    - accu ( *(varyingTau.getTau()) % log( *(varyingTau.getTau()) ) );
 }
 
-void BaselineSbm::computeIcl(uword iIterSBM)
+void BaselineSbm::computeIcl()
 {
-    icl[iIterSBM] = accu( trimatu( *(varyingPi.getBlockLogLiks()) ) ) 
+    icl = accu( trimatu( *(varyingPi.getBlockLogLiks()) ) ) 
                     + accu( *(varyingAlpha.getNodalLogLiks()) )
-                    - accu ( *(varyingTau.getTau()) % log( *(varyingTau.getTau()) ) )  
                     - iclPenalisation;
-                    // cout << accu( trimatu( *(varyingPi.getBlockLogLiks()) ) ) << endl;
-                    // cout << accu( *(varyingAlpha.getNodalLogLiks()) ) << endl;
-                    // cout << -accu ( *(varyingTau.getTau()) % log( *(varyingTau.getTau()) ) )  << endl;
-                    // cout << -iclPenalisation << endl;
 }
 
 void BaselineSbm::saveInDirectory(string dirName)
@@ -84,6 +88,7 @@ void BaselineSbm::saveInDirectory(string dirName)
     varyingPi.printPi(dirName + "/pi.txt");
     varyingPi.printBeta(dirName + "/beta_pi.txt");
     
+    variationalBound.save(dirName + "/variationalBound.txt", arma_ascii);
     icl.save(dirName + "/icl.txt", arma_ascii);
 
 }
