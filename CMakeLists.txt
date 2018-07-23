@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.1)
 
 project(sbm CXX)
 
@@ -18,11 +18,13 @@ configure_file (
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
 
 # Find armadillo library
-find_package(Armadillo REQUIRED)
+set(BOOST_MIN_VERSION 8.600.0)
+find_package(Armadillo ${BOOST_MIN_VERSION} REQUIRED)
 
 # include directories
 include_directories(${CMAKE_SOURCE_DIR}/include)
 include_directories(${ARMADILLO_INCLUDE_DIRS})
+include_directories(libs/cxxopts/include)
 
 # sources
 file(GLOB_RECURSE ARMAMIN_SOURCES "src/*.cpp")

@@ -38,7 +38,7 @@ private:
   // convergence criteria
   bool convergence;
   uword nIterSBM;
-  double relTolConvergenceIcl;
+  double relConvTol;
   // double convergenceDeltaForTau;
   // double convergenceDeltaForPi;
   // double convergenceDeltaForAlpha;
@@ -49,13 +49,14 @@ private:
   VaryingAlpha varyingAlpha;
   VaryingPi varyingPi;
 
-  colvec icl;
+  colvec icl, variationalBound;
   double iclPenalisation;
 public:
   BaselineSbm(const ucube* pAdjacencyMatrices, bool directed, const mat* pDesignMatrixAlpha, const mat* pDesignMatrixPi, uword nClusters, uword nIterSBM, uword nIterTau, uword nIterAlpha, uword nIterPi, uword nIterHalvingAlpha, uword nIterHalvingPi, double maxDeltaBeta, double minTau, double minAlpha, double minDeltaTau, const umat* pStartingNodeAssignment, double relTolConvergenceIcl, bool verbose);
   void estimateModel();
   void estimateNodeAssignement();
-  void computeIcl(uword iIterSBM);
+  void computeVariationalBound(uword iIterSBM);
+  void computeIcl();
   void saveInDirectory(string dirName);
 
 };
