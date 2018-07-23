@@ -6,17 +6,17 @@
 #include "VaryingTau.h"
 
 using namespace std;
-VaryingTau::VaryingTau(const ucube* pAdjacencyMatrices, const umat* pStartingNodeAssignment, uword nClusters, uword nIterTau, double minTau, double minDeltaTau) : 
-    pAdjacencyMatrices(pAdjacencyMatrices), nClusters(nClusters), nSubjects((*pAdjacencyMatrices).n_rows), nNodes((*pAdjacencyMatrices).n_slices), nIterTau(nIterTau), minTau(minTau), minDeltaTau(minDeltaTau)
+VaryingTau::VaryingTau(const ucube* pAdjacencyMatrices, const umat* pStartingNodeAssignment, uword nClusters, uword nIterTau, double minTau, double relConvTol) : 
+    pAdjacencyMatrices(pAdjacencyMatrices), nClusters(nClusters), nSubjects((*pAdjacencyMatrices).n_rows), nNodes((*pAdjacencyMatrices).n_slices), nIterTau(nIterTau), minTau(minTau), relConvTol(relConvTol)
 {
     tau.set_size(nClusters, nSubjects, nNodes);
     VaryingTau::initTau(pStartingNodeAssignment);
-    convergenceTau = true;
     pAugmentedAlpha = NULL;
     pPi = NULL;
-    convergenceTau = false;
     logOneMinusPi.set_size(nClusters, nClusters, nSubjects);
     logitPi.set_size(nClusters, nClusters, nSubjects);
+    convergenceTau.set_size(nSubjects);
+    subjectLogLiks.set_size(nSubjects);
 }
 
 void VaryingTau::initTau()
@@ -43,8 +43,6 @@ void VaryingTau::initTau(const umat* pStartingNodeAssignment)
     }
     tau = tau / (1 + nClusters * minTau) + minTau / (1 + nClusters * minTau);
     VaryingTau::initNodalSums();
-    sumNodalTau.save("/tmp/sumNodalTau.txt", arma_ascii);
-    sumMaskedNodalTau.save("/tmp/sumMaskedNodalTau.txt", arma_ascii);
 }
 
 void VaryingTau::initNodalSums()
@@ -78,6 +76,10 @@ void VaryingTau::initBeforeEachUpdateTau()
         logitPi.slice(i) = log(tmp);
     }
     logitPi -= logOneMinusPi;
+    
+    // compute also the subject-specific log-likelihoods used to check convergence (note: depends on logotPi and logOneMinusPi)
+    for (uword i = 0; i < nSubjects; i++)
+        subjectLogLiks[i] = computeSubjectLogLik(i);
 }
 
 void VaryingTau::assignPointers(const cube* pAugmentedAlpha, const mat* pPi)
@@ -86,68 +88,103 @@ void VaryingTau::assignPointers(const cube* pAugmentedAlpha, const mat* pPi)
     this->pPi = pPi;
 }
 
-// TODO : optimise by stating convergence per subject basis
 void VaryingTau::updateNodalTau(uword index)
 {
-    mat nodalTau = tau.slice(index);
-    cube maskedNodalTau(nClusters, nSubjects, nNodes);
-    umat nodalAdjacencyMatrices = (*pAdjacencyMatrices).slice(index);
+    mat redNodalTau = tau.slice(index).cols(indicesSubjectsToUpdate);
+    cube redMaskedNodalTau(nClusters, nSubjectsToUpdate, nNodes);
+    umat redNodalAdjacencyMatrices = (*pAdjacencyMatrices).slice(index).rows(indicesSubjectsToUpdate);
     for (uword i = 0; i < nNodes; i++)
-        maskedNodalTau.slice(i) = nodalTau % repmat(nodalAdjacencyMatrices.col(i).t(), nClusters, 1);
+        redMaskedNodalTau.slice(i) = redNodalTau % repmat(redNodalAdjacencyMatrices.col(i).t(), nClusters, 1);
 
     // remove the slice from the sum over nodes
-    mat sumNodalTauMinusCurrent = sumNodalTau - nodalTau;
-    cube sumMaskedNodalTauMinusCurrent = sumMaskedNodalTau - maskedNodalTau;
-    mat sumCurrentMaskedNodalTauMinusCurrent = sumMaskedNodalTauMinusCurrent.slice(index);
+    mat redSumNodalTauMinusCurrent = sumNodalTau.cols(indicesSubjectsToUpdate) - redNodalTau;
+    cube redSumMaskedNodalTauMinusCurrent(nClusters, nSubjectsToUpdate, nNodes);
+    for (uword i = 0; i < nNodes; i++)
+        redSumMaskedNodalTauMinusCurrent.slice(i) = sumMaskedNodalTau.slice(i).cols(indicesSubjectsToUpdate) - redMaskedNodalTau.slice(i);
+    mat redSumCurrentMaskedNodalTauMinusCurrent = redSumMaskedNodalTauMinusCurrent.slice(index);
    
-    // compute new nodal tau
-    for (uword i = 0; i < nSubjects; i++)
+    // compute new nodal tau for subjects that have not converged yet
+    uword currentIndexSubject;
+    for (uword i = 0; i < nSubjectsToUpdate; i++)
     {
-        nodalTau.col(i) = logOneMinusPi.slice(i) * sumNodalTauMinusCurrent.col(i) + 
-                        logitPi.slice(i) * sumCurrentMaskedNodalTauMinusCurrent.col(i);
+        currentIndexSubject = indicesSubjectsToUpdate[i];
+        redNodalTau.col(i) = logOneMinusPi.slice(currentIndexSubject) * redSumNodalTauMinusCurrent.col(i) + 
+                        logitPi.slice(currentIndexSubject) * redSumCurrentMaskedNodalTauMinusCurrent.col(i);
     }
-    nodalTau += log((*pAugmentedAlpha).slice(index));
+    redNodalTau += log((*pAugmentedAlpha).slice(index).cols(indicesSubjectsToUpdate));
 
     // normalise tau
     mat tmp;
-    for (uword i = 0; i < nSubjects; i++)
+    for (uword i = 0; i < nSubjectsToUpdate; i++)
     {
-        tmp = repmat(nodalTau.col(i), 1, nClusters);
+        tmp = repmat(redNodalTau.col(i), 1, nClusters);
         tmp = exp(tmp - tmp.t());
-        nodalTau.col(i) = 1/sum(tmp).t();
+        redNodalTau.col(i) = 1/sum(tmp).t();
     }
 
     // make sure that there is a minimum value
-    nodalTau = nodalTau / (1 + nClusters * minTau) + minTau / (1 + nClusters * minTau);
+    redNodalTau = redNodalTau / (1 + nClusters * minTau) + minTau / (1 + nClusters * minTau);
 
     // update sumNodalTau and sumMaskedNodalTau for next used
-    sumNodalTau = sumNodalTauMinusCurrent + nodalTau;
+    sumNodalTau.cols(indicesSubjectsToUpdate) = redSumNodalTauMinusCurrent + redNodalTau;
     for (uword i = 0; i < nNodes; i++)
-        maskedNodalTau.slice(i) = nodalTau % repmat(nodalAdjacencyMatrices.col(i).t(), nClusters, 1);    
-    sumMaskedNodalTau = sumMaskedNodalTauMinusCurrent + maskedNodalTau;
+        sumMaskedNodalTau.slice(i).cols(indicesSubjectsToUpdate) = redSumMaskedNodalTauMinusCurrent.slice(i) + ( redNodalTau % repmat(redNodalAdjacencyMatrices.col(i).t(), nClusters, 1) );
     
     // if( any( vectorise( abs(tau.slice(index) - nodalTau) ) > minDeltaTau))
-    if( any( vectorise( abs(tau.slice(index) - nodalTau) ) > minDeltaTau))
-        convergenceTau = false;
+    //     convergenceTau = false;
 
-    tau.slice(index) = nodalTau;
+    tau.slice(index).cols(indicesSubjectsToUpdate) = redNodalTau;
 }
 
 void VaryingTau::updateTau()
 {
-    // update some variable depending on pi 
+    // update some variable depending on pi (including the subject specific log-liks)
     VaryingTau::initBeforeEachUpdateTau();
     uword iIterTau = 0;
-    convergenceTau = false;
-    while (iIterTau < nIterTau && !convergenceTau)
+    convergenceTau.zeros();
+    double tmpSubjectLogLik;
+    uword currentIndexSubject;
+    while ( iIterTau < nIterTau && any(convergenceTau == 0) )
     {   
-        // set the convergence to true now; it will be set to false in VaryingTau::updateNodalTau if no convergence is detected for at least one node
-        convergenceTau = true;
+        indicesSubjectsToUpdate = find(convergenceTau == 0);
+        nSubjectsToUpdate = indicesSubjectsToUpdate.n_elem;
         for (uword i = 0; i < nNodes; i++)
             VaryingTau::updateNodalTau(i);
-        // check if there is convergence in term of icl scores 
+
+        // check if there is convergence in term of the variational bound contribution of each subject
+        for (uword i = 0; i < nSubjectsToUpdate; i++)
+        {
+            currentIndexSubject = indicesSubjectsToUpdate[i];
+            tmpSubjectLogLik = computeSubjectLogLik(i);
+            if ( tmpSubjectLogLik - subjectLogLiks[currentIndexSubject] < abs(subjectLogLiks[currentIndexSubject]) * relConvTol )
+                convergenceTau[currentIndexSubject] = 1;
+            subjectLogLiks[currentIndexSubject] = tmpSubjectLogLik;
+        }
+        // TODO : Handle the hypothetical case where the log-lik actually decreases (In principle, that should not happen) 
         iIterTau++;
     }
+}
+
+double VaryingTau::computeSubjectLogLik(uword index)
+{
+    umat sliceAdjMat;
+    vec tmpTau1, tmpTau2;
+    double subjectLogLik(0);
+    for (uword i = 0; i < nNodes; i++)
+    {
+        tmpTau1 = tau.slice(i).col(index);
+        sliceAdjMat = (*pAdjacencyMatrices).slice(i);
+        for (uword ii = 0; ii < nNodes; ii++)
+        {
+            if (i != ii)
+            {
+                tmpTau2 = tau.slice(ii).col(index);
+                subjectLogLik += accu( ( tmpTau1 * tmpTau2.t() ) % ( logOneMinusPi.slice(index) + sliceAdjMat.at(index, ii) * logitPi.slice(index) ) );
+            }
+        }
+        subjectLogLik += sum( tmpTau1 % ( log( (*pAugmentedAlpha).slice(i).col(index) ) - log(tmpTau1) ) );
+    }
+    return 0.5 * subjectLogLik; 
 }
 
 const cube* VaryingTau::getTau() const

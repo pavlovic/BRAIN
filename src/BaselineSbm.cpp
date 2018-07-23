@@ -7,7 +7,7 @@
 
 BaselineSbm::BaselineSbm(const ucube* pAdjacencyMatrices, bool directed, const mat* pDesignMatrixAlpha, const mat* pDesignMatrixPi, uword nClusters, uword nIterSBM, uword nIterTau, uword nIterAlpha, uword nIterPi, uword nIterHalvingAlpha, uword nIterHalvingPi, double maxDeltaBeta, double minTau, double minAlpha, double minDeltaTau, const umat* pStartingNodeAssignment, double relConvTol, bool verbose) 
 : pAdjacencyMatrices(pAdjacencyMatrices), directed(directed), nClusters(nClusters), nIterSBM(nIterSBM), pStartingNodeAssignment(pStartingNodeAssignment), convergence(false), verbose(verbose),
-    varyingTau(pAdjacencyMatrices, pStartingNodeAssignment, nClusters, nIterTau, minTau, minDeltaTau),
+    varyingTau(pAdjacencyMatrices, pStartingNodeAssignment, nClusters, nIterTau, minTau, relConvTol),
     varyingAlpha(pDesignMatrixAlpha, nIterAlpha, nIterHalvingAlpha, maxDeltaBeta, minAlpha, relConvTol, varyingTau.getTau()),
     varyingPi(pDesignMatrixPi, nIterPi, nIterHalvingPi, maxDeltaBeta, relConvTol, varyingTau.getTau(), pAdjacencyMatrices),
     relConvTol(relConvTol)
@@ -32,10 +32,10 @@ void BaselineSbm::estimateModel()
         if(iIterSBM > 0)
             varyingTau.updateTau();
 
-        // compute alpha and pi model parameters given tau        
         if(verbose)
             cout << "Computing parameters for alpha..." << endl;
         varyingAlpha.computeBeta();
+
         if(verbose)
             cout << "Computing parameters for pi..." << endl;
         varyingPi.computeBeta();

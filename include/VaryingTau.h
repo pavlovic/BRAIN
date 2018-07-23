@@ -23,10 +23,15 @@ private:
     const cube* pAugmentedAlpha;
     const mat* pPi;
     cube logOneMinusPi, logitPi;
-    double minTau, minDeltaTau;
-    bool convergenceTau;
+    double minTau, relConvTol;
+    uvec convergenceTau;
+    vec subjectLogLiks;
+
+    uvec indicesSubjectsToUpdate;
+    uword nSubjectsToUpdate;
+
 public:
-    VaryingTau(const ucube* pAdjacencyMatrices, const umat* pStartingNodeAssignment, uword nClusters, uword nIterTau, double minTau, double minDeltaTau);
+    VaryingTau(const ucube* pAdjacencyMatrices, const umat* pStartingNodeAssignment, uword nClusters, uword nIterTau, double minTau, double relConvTol);
     void initTau();
     void initTau(const uvec* pStartingNodeAssignment);
     void initTau(const umat* pStartingNodeAssignment);
@@ -35,6 +40,7 @@ public:
     void assignPointers(const cube* pAugmentedAlpha, const mat* pPi);
     void updateNodalTau(uword index);
     void updateTau();
+    double computeSubjectLogLik(uword index);
     const cube* getTau() const;
     void printTau();
     void printTau(string filename);
